@@ -21,23 +21,27 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.alibaba.csp.sentinel.util.TimeUtil;
 import com.alibaba.csp.sentinel.Entry;
 import com.alibaba.csp.sentinel.SphU;
 import com.alibaba.csp.sentinel.slots.block.BlockException;
 import com.alibaba.csp.sentinel.slots.block.RuleConstant;
 import com.alibaba.csp.sentinel.slots.block.flow.FlowRule;
 import com.alibaba.csp.sentinel.slots.block.flow.FlowRuleManager;
+import com.alibaba.csp.sentinel.util.TimeUtil;
 
 /**
  * @author jialiang.linjl
  */
 public class FlowQpsDemo {
 
+    //并发访问的资源
     private static final String KEY = "abc";
 
+    //全局通过
     private static AtomicInteger pass = new AtomicInteger();
+    //全局被阻塞
     private static AtomicInteger block = new AtomicInteger();
+    //总流量 线程数量
     private static AtomicInteger total = new AtomicInteger();
 
     private static volatile boolean stop = false;
@@ -47,10 +51,13 @@ public class FlowQpsDemo {
     private static int seconds = 60 + 40;
 
     public static void main(String[] args) throws Exception {
+        //初始化限流规则
         initFlowQpsRule();
 
+        //开启统计线程
         tick();
         // first make the system run on a very low condition
+        //模拟流量 threadCount个线程并发访问
         simulateTraffic();
 
         System.out.println("===== begin to do flow control");
@@ -73,7 +80,7 @@ public class FlowQpsDemo {
     private static void simulateTraffic() {
         for (int i = 0; i < threadCount; i++) {
             Thread t = new Thread(new RunTask());
-            t.setName("simulate-traffic-Task");
+            t.setName("simulate-traffic-Task 线程" + i);
             t.start();
         }
     }
@@ -130,16 +137,23 @@ public class FlowQpsDemo {
     }
 
     static class RunTask implements Runnable {
+
+        AtomicInteger index = new AtomicInteger();
+
         @Override
         public void run() {
             while (!stop) {
                 Entry entry = null;
 
                 try {
+                    System.out.println(Thread.currentThread() + "线程开始在访问资源-------------" + index.incrementAndGet());
+                    //判断是否允许访问资源
                     entry = SphU.entry(KEY);
                     // token acquired, means pass
+                    //未抛异常,此次允许访问
                     pass.addAndGet(1);
                 } catch (BlockException e1) {
+                    //此次访问被限流
                     block.incrementAndGet();
                 } catch (Exception e2) {
                     // biz exception
